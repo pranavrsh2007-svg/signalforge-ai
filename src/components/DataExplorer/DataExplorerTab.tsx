@@ -1,10 +1,11 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   DataRow,
   ValidationResult,
 } from '../../types';
 import {
   Upload,
+  FolderOpen,
   Database,
   Search,
   Filter,
@@ -22,7 +23,9 @@ import { ConfirmationModal } from '../Common/ConfirmationModal';
 interface DataExplorerTabProps {
   rows: DataRow[];
   validation: ValidationResult;
-  onFileUpload: (file: File) => void;
+  onFileUpload: (
+    file: File
+  ) => Promise<{ success: boolean; rowCount: number; columnCount: number; fileName: string; error?: string }>;
   onLoadSample: () => Promise<{ success: boolean; rowCount: number; error?: string }>;
   onClearData: () => void;
   onExportCsv: (rowsToExport: DataRow[]) => void;
@@ -41,11 +44,15 @@ export const DataExplorerTab: React.FC<DataExplorerTabProps> = ({
   const [isDragOver, setIsDragOver] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isLoadingSample, setIsLoadingSample] = useState(false);
-  const [sampleNotification, setSampleNotification] = useState<{
+  const [isUploading, setIsUploading] = useState(false);
+  const [notification, setNotification] = useState<{
     type: 'success' | 'error';
+    title: string;
     message: string;
     rowCount?: number;
   } | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Extract distinct categories
   const categories = useMemo(() => {
@@ -61,29 +68,113 @@ export const DataExplorerTab: React.FC<DataExplorerTabProps> = ({
     }
   }, [categories, categoryFilter]);
 
+  // Open native Windows file picker directly and reliably
+  const handleOpenPicker = (e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+    }
+    if (fileInputRef.current) {
+      // Clear value first so choosing the exact same file fires onChange reliably
+      fileInputRef.current.value = '';
+      fileInputRef.current.click();
+    }
+  };
+
+  // Shared file processor for both File Picker and Drag-and-Drop
+  const processFile = async (file: File) => {
+    if (!file) return;
+
+    // Check extension
+    const isCsvName = file.name.toLowerCase().endsWith('.csv');
+    const isCsvMime = file.type && (file.type.includes('csv') || file.type.includes('comma-separated-values'));
+    if (!isCsvName && !isCsvMime) {
+      setNotification({
+        type: 'error',
+        title: 'Unsupported File Format',
+        message: `File '${file.name}' is not recognized as a CSV. Please select a valid .csv file.`,
+      });
+      return;
+    }
+
+    // Check file size (5 MB limit)
+    if (file.size > 5 * 1024 * 1024) {
+      setNotification({
+        type: 'error',
+        title: 'File Too Large',
+        message: `File '${file.name}' (${(file.size / (1024 * 1024)).toFixed(2)} MB) exceeds the 5.0 MB limit.`,
+      });
+      return;
+    }
+
+    setIsUploading(true);
+    setNotification(null); // Clear previous stale notification
+
+    try {
+      const res = await onFileUpload(file);
+      if (res && res.success) {
+        setSearchQuery('');
+        setCategoryFilter('ALL');
+        setNotification({
+          type: 'success',
+          title: 'CSV File Imported Successfully',
+          message: `Successfully uploaded and validated ${res.rowCount} rows & ${res.columnCount || 8} columns from '${res.fileName}'. Active dataset and charts updated.`,
+          rowCount: res.rowCount,
+        });
+      } else {
+        setNotification({
+          type: 'error',
+          title: 'CSV Upload Rejected',
+          message: (res && res.error) || `File '${file.name}' rejected during schema validation.`,
+        });
+      }
+    } catch (err: any) {
+      setNotification({
+        type: 'error',
+        title: 'Upload Processing Error',
+        message: err.message || 'An unexpected error occurred while reading your CSV file.',
+      });
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      processFile(files[0]);
+    }
+    // If user cancelled the picker dialog, do nothing (never show false success)
+  };
+
   // Click-to-data handler for loading verified sample
   const handleLoadSampleClick = async () => {
     setIsLoadingSample(true);
-    setSampleNotification(null);
+    setNotification(null); // Clear previous stale notification
     try {
       const res = await onLoadSample();
       if (res && res.success) {
         setSearchQuery('');
         setCategoryFilter('ALL');
-        setSampleNotification({
+        setNotification({
           type: 'success',
-          message: `Successfully loaded and validated ${res.rowCount} rows & ${validation.columnCount || 8} columns from verified sample sales data.`,
+          title: 'Sample Dataset Loaded',
+          message: `Successfully loaded and validated ${res.rowCount} rows & 8 columns from verified public sample sales data.`,
           rowCount: res.rowCount,
         });
       } else {
-        setSampleNotification({
+        setNotification({
           type: 'error',
+          title: 'Sample Loading Error',
           message: (res && res.error) || 'Failed to load sample dataset. File missing or malformed.',
         });
       }
     } catch (err: any) {
-      setSampleNotification({
+      setNotification({
         type: 'error',
+        title: 'Sample Loading Error',
         message: err.message || 'An unexpected error occurred while loading sample data.',
       });
     } finally {
@@ -119,7 +210,7 @@ export const DataExplorerTab: React.FC<DataExplorerTabProps> = ({
     e.preventDefault();
     setIsDragOver(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      onFileUpload(e.dataTransfer.files[0]);
+      processFile(e.dataTransfer.files[0]);
     }
   };
 
@@ -131,6 +222,7 @@ export const DataExplorerTab: React.FC<DataExplorerTabProps> = ({
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
+        onClick={handleOpenPicker}
         style={{
           border: isDragOver ? '2px dashed #E34AFF' : '2px dashed var(--color-border-strong)',
           backgroundColor: isDragOver ? 'var(--color-surface-hover)' : 'var(--color-surface-base)',
@@ -138,19 +230,30 @@ export const DataExplorerTab: React.FC<DataExplorerTabProps> = ({
           padding: '28px',
           cursor: 'pointer',
           transition: 'all 0.15s ease',
+          position: 'relative',
         }}
-        onClick={() => document.getElementById('csv-file-input')?.click()}
       >
+        {/* Real Accessible Visually-Hidden File Input (NOT display: none) */}
         <input
+          ref={fileInputRef}
           id="csv-file-input"
           type="file"
           accept=".csv,text/csv"
-          style={{ display: 'none' }}
-          onChange={(e) => {
-            if (e.target.files && e.target.files[0]) {
-              onFileUpload(e.target.files[0]);
-            }
+          style={{
+            position: 'absolute',
+            width: '1px',
+            height: '1px',
+            padding: 0,
+            margin: '-1px',
+            overflow: 'hidden',
+            clip: 'rect(0, 0, 0, 0)',
+            whiteSpace: 'nowrap',
+            border: 0,
+            opacity: 0,
+            pointerEvents: 'none',
           }}
+          onChange={handleFileInputChange}
+          onClick={(e) => e.stopPropagation()}
         />
 
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
@@ -180,11 +283,32 @@ export const DataExplorerTab: React.FC<DataExplorerTabProps> = ({
             .
           </p>
 
-          <div style={{ display: 'flex', gap: '12px', marginTop: '6px' }} onClick={(e) => e.stopPropagation()}>
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: '12px',
+              marginTop: '6px',
+              justifyContent: 'center',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleOpenPicker}
+              disabled={isUploading}
+              title="Open file picker to select CSV from your computer"
+            >
+              {isUploading ? <RotateCw size={14} className="spin" /> : <FolderOpen size={14} />}
+              <span>{isUploading ? 'Uploading & Parsing...' : 'Choose CSV from PC'}</span>
+            </button>
+
+            <button
+              type="button"
               className="btn btn-secondary"
               onClick={handleLoadSampleClick}
-              disabled={isLoadingSample}
+              disabled={isLoadingSample || isUploading}
               title="Load 26 verified rows of illustrative sample business data"
             >
               {isLoadingSample ? <RotateCw size={14} className="spin" /> : <Database size={14} />}
@@ -194,60 +318,75 @@ export const DataExplorerTab: React.FC<DataExplorerTabProps> = ({
         </div>
       </div>
 
-      {/* Sample Loading Feedback Banner */}
-      {sampleNotification && (
+      {/* Operation Feedback Notification Banner */}
+      {notification && (
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: '12px 16px',
+            padding: '14px 18px',
             borderRadius: 'var(--radius-md)',
             backgroundColor:
-              sampleNotification.type === 'success' ? 'var(--color-surface-raised)' : 'var(--color-error-dim)',
+              notification.type === 'success' ? 'rgba(69, 181, 88, 0.12)' : 'var(--color-error-dim)',
             border:
-              sampleNotification.type === 'success'
-                ? '1px solid var(--color-border-strong)'
+              notification.type === 'success'
+                ? '1px solid rgba(69, 181, 88, 0.4)'
                 : '1px solid rgba(240, 59, 42, 0.4)',
             gap: '12px',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            {sampleNotification.type === 'success' ? (
-              <CheckCircle2 size={18} color="var(--color-success)" style={{ flexShrink: 0 }} />
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+            {notification.type === 'success' ? (
+              <CheckCircle2 size={18} color="var(--color-success)" style={{ flexShrink: 0, marginTop: '2px' }} />
             ) : (
-              <AlertCircle size={18} color="var(--color-error)" style={{ flexShrink: 0 }} />
+              <AlertCircle size={18} color="var(--color-error)" style={{ flexShrink: 0, marginTop: '2px' }} />
             )}
-            <span
-              style={{
-                fontSize: '12px',
-                color: sampleNotification.type === 'success' ? 'var(--color-text-main)' : 'var(--color-error)',
-                fontWeight: 500,
-              }}
-            >
-              {sampleNotification.message}
-            </span>
+            <div>
+              <strong
+                style={{
+                  display: 'block',
+                  fontSize: '13px',
+                  color: notification.type === 'success' ? 'var(--color-success)' : 'var(--color-error)',
+                  marginBottom: '2px',
+                }}
+              >
+                {notification.title}
+              </strong>
+              <span
+                style={{
+                  fontSize: '12px',
+                  color: 'var(--color-text-main)',
+                  lineHeight: 1.5,
+                }}
+              >
+                {notification.message}
+              </span>
+            </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {sampleNotification.type === 'error' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+            {notification.type === 'error' && (
               <button
+                type="button"
                 className="btn btn-secondary"
-                style={{ fontSize: '11px', padding: '4px 10px' }}
-                onClick={handleLoadSampleClick}
-                disabled={isLoadingSample}
+                style={{ fontSize: '11px', padding: '5px 12px' }}
+                onClick={handleOpenPicker}
+                disabled={isUploading}
               >
-                <RotateCw size={12} className={isLoadingSample ? 'spin' : ''} />
-                <span>Retry</span>
+                <FolderOpen size={12} />
+                <span>Try Another CSV</span>
               </button>
             )}
             <button
+              type="button"
               className="btn btn-ghost"
               style={{ padding: '4px' }}
-              onClick={() => setSampleNotification(null)}
+              onClick={() => setNotification(null)}
               aria-label="Dismiss notification"
+              title="Dismiss notification"
             >
-              <X size={14} color="var(--color-text-muted)" />
+              <X size={16} color="var(--color-text-muted)" />
             </button>
           </div>
         </div>

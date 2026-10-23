@@ -316,18 +316,53 @@ export const App: React.FC = () => {
     loadSampleDataset();
   }, [loadSampleDataset]);
 
-  // File upload handler
-  const handleFileUpload = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const content = e.target?.result as string;
-      if (content) {
-        ingestCsvString(content, file.name, file.size, false);
-        handleSelectTab('dashboard');
+  // File upload handler from PC or Drag-and-Drop
+  const handleFileUpload = useCallback(
+    async (
+      file: File
+    ): Promise<{ success: boolean; rowCount: number; columnCount: number; fileName: string; error?: string }> => {
+      try {
+        let content = '';
+        if (typeof file.text === 'function') {
+          content = await file.text();
+        } else {
+          content = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve((e.target?.result as string) || '');
+            reader.onerror = () => reject(new Error('Failed to read file from disk'));
+            reader.readAsText(file);
+          });
+        }
+
+        const result = ingestCsvString(content, file.name, file.size, false);
+        if (result.isValid) {
+          return {
+            success: true,
+            rowCount: result.rowCount,
+            columnCount: 8,
+            fileName: file.name,
+          };
+        } else {
+          return {
+            success: false,
+            rowCount: 0,
+            columnCount: 0,
+            fileName: file.name,
+            error: result.errors[0] || 'Validation rejected the uploaded CSV file.',
+          };
+        }
+      } catch (err: any) {
+        return {
+          success: false,
+          rowCount: 0,
+          columnCount: 0,
+          fileName: file.name,
+          error: err.message || 'Failed to read file from PC.',
+        };
       }
-    };
-    reader.readAsText(file);
-  };
+    },
+    [ingestCsvString]
+  );
 
   // AI Explanation Handler
   const handleRequestAIExplanation = async (finding: AnomalyFinding) => {
