@@ -109,16 +109,20 @@ The application operates as a unified 10-page client-server application with bro
 
 - **Vitest Unit Test Suite:**
   - Command: `npm run test`
-  - Output: 4 test files passed, 18/18 tests passed.
+  - Output: 4 test files passed, 19/19 tests passed (100%).
   - Coverage:
-    - `tests/csv.test.ts` (6 tests): CSV parsing, file size bounds, column profiling, formula sanitization.
+    - `tests/csv.test.ts` (7 tests): CSV parsing, file size bounds, column profiling, formula sanitization, and verified sample CSV loading yielding exactly 26 valid rows & 8 columns.
     - `tests/metrics.test.ts` (5 tests): KPI calculations, gross margin rules, daily trends, runway estimation.
     - `tests/anomalies.test.ts` (3 tests): Stockout detection, revenue surges, deterministic fallback generator.
     - `tests/ai_schema.test.ts` (4 tests): JSON schema validation, output bounds, type checks.
 - **Production TypeScript & Bundling:**
   - Command: `npm run build` (`tsc && vite build`)
-  - Output: 2,591 modules transformed in 3.56s.
-  - Errors: 0 TypeScript errors.
+  - Output: 2,591 modules transformed in 3.27s (0 TypeScript errors).
+- **GitHub Repository Push:**
+  - Remote: `https://github.com/pranavrsh2007-svg/signalforge-ai.git`
+  - Branch: `main`
+  - Status: Successfully pushed (55 files tracked; `.env`, `.env.*`, `node_modules`, `dist`, and archives strictly excluded).
+  - Vercel Deployment Assets: `vercel.json`, `api/insights.ts`, and `api/status.ts` included for 1-click zero-config deployment.
 - **Live Server & Endpoint Verification:**
   - Dev server active on `http://localhost:5174/`.
   - Verified `GET /api/insights/status` returns HTTP 200 with structured status JSON.
