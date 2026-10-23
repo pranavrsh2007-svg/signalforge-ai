@@ -1,0 +1,27 @@
+date,order_id,category,product,quantity,unit_price,unit_cost,stock_on_hand
+2026-09-01,O-1001,Home,Storage Box,4,18,10,80
+2026-09-01,O-1002,Office,Notebook Set,8,7,3,120
+2026-09-02,O-1003,Home,Desk Lamp,3,32,18,34
+2026-09-02,O-1004,Kitchen,Water Bottle,10,12,5,55
+2026-09-03,O-1005,Office,Notebook Set,12,7,3,108
+2026-09-03,O-1006,Home,Storage Box,5,18,10,75
+2026-09-04,O-1007,Kitchen,Water Bottle,8,12,5,47
+2026-09-04,O-1008,Home,Desk Lamp,2,32,18,29
+2026-09-05,O-1009,Office,Notebook Set,15,7,3,93
+2026-09-05,O-1010,Home,Storage Box,6,18,10,69
+2026-09-06,O-1011,Kitchen,Water Bottle,9,12,5,38
+2026-09-06,O-1012,Home,Desk Lamp,2,32,18,25
+2026-09-07,O-1013,Office,Notebook Set,11,7,3,82
+2026-09-08,O-1014,Home,Storage Box,4,18,10,65
+2026-09-08,O-1015,Kitchen,Water Bottle,7,12,5,31
+2026-09-09,O-1016,Office,Notebook Set,14,7,3,68
+2026-09-09,O-1017,Home,Desk Lamp,1,32,18,22
+2026-09-10,O-1018,Home,Storage Box,5,18,10,60
+2026-09-10,O-1019,Kitchen,Water Bottle,6,12,5,25
+2026-09-11,O-1020,Office,Notebook Set,16,7,3,52
+2026-09-12,O-1021,Home,Desk Lamp,1,32,18,18
+2026-09-12,O-1022,Home,Storage Box,3,18,10,55
+2026-09-13,O-1023,Kitchen,Water Bottle,4,12,5,21
+2026-09-13,O-1024,Office,Notebook Set,18,7,3,40
+2026-09-14,O-1025,Home,Storage Box,3,18,10,49
+2026-09-15,O-1026,Kitchen,Water Bottle,3,12,5,18
